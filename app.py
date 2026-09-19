@@ -116,12 +116,13 @@ with st.container(horizontal=True):
     st.metric("Lost volume", format_ml(lost_volume), border=True)
     st.metric("Demand in window", format_ml(total_demand), border=True)
 
-overview_tab, queue_tab, model_tab, data_tab = st.tabs(
+overview_tab, queue_tab, model_tab, data_tab, abc_tab = st.tabs(
     [
         ":material/dashboard: Overview",
         ":material/priority_high: Reorder queue",
         ":material/query_stats: Model health",
         ":material/database: Data quality",
+        ":material/category: ABC priorities",
     ]
 )
 
@@ -235,7 +236,7 @@ with model_tab:
     st.caption("Chronological validation error in milliliters.")
 
 with data_tab:
-    quality_col, abc_col = st.columns([1, 1])
+    quality_col, category_col = st.columns([1, 1])
     with quality_col:
         with st.container(border=True):
             st.subheader("Dataset footprint")
@@ -245,17 +246,38 @@ with data_tab:
             st.write(f"**Bars:** {daily['Bar Name'].nunique()} · **Brands:** {daily['Brand Name'].nunique()}")
             st.write(f"**Date range:** {daily['Date'].min():%d %b %Y} to {daily['Date'].max():%d %b %Y}")
             st.success("Conservation checks passed in the notebook.", icon=":material/check_circle:")
-    with abc_col:
+    with category_col:
         with st.container(border=True):
-            st.subheader("ABC inventory priorities")
-            abc_counts = abc["ABC_class"].value_counts().reindex(["A", "B", "C"]).fillna(0)
-            st.bar_chart(abc_counts, color="#167d8d")
-            st.caption("Class A items account for the first 80% of cumulative consumption.")
+            st.subheader("Consumption by alcohol category")
+            category_chart = categories.set_index("Alcohol Type")["total_consumption_ml"]
+            st.bar_chart(category_chart, color="#167d8d", horizontal=True)
+            st.caption("Category totals are calculated from the original transaction-level workbook.")
+
+with abc_tab:
+    st.subheader("ABC inventory priorities", icon=":material/category:")
+    st.caption("Class A items account for the first 80% of cumulative consumption, B for the next 15%, and C for the remainder.")
+    abc_counts = abc["ABC_class"].value_counts().reindex(["A", "B", "C"]).fillna(0)
+    class_cols = st.columns(3)
+    for column, label, value in zip(class_cols, ["A", "B", "C"], [int(abc_counts.get("A", 0)), int(abc_counts.get("B", 0)), int(abc_counts.get("C", 0))]):
+        column.metric(f"Class {label}", f"{value:,}")
 
     with st.container(border=True):
-        st.subheader("Consumption by alcohol category")
-        category_chart = categories.set_index("Alcohol Type")["total_consumption_ml"]
-        st.bar_chart(category_chart, color="#167d8d", horizontal=True)
-        st.caption("Category totals are calculated from the original transaction-level workbook.")
+        st.bar_chart(abc_counts, color="#167d8d")
+
+    top_series = abc.sort_values("annual_consumption_ml", ascending=False).head(15).copy()
+    top_series["Series"] = top_series["Bar Name"] + " / " + top_series["Brand Name"]
+    st.dataframe(
+        top_series[["Series", "annual_consumption_ml", "ABC_class"]].rename(
+            columns={
+                "annual_consumption_ml": "Annual consumption (ml)",
+                "ABC_class": "ABC class",
+            }
+        ),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Annual consumption (ml)": st.column_config.NumberColumn(format="%.1f"),
+        },
+    )
 
 st.caption("Refresh the notebook outputs after changing the source workbook, then reload this dashboard.")
