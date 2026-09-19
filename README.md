@@ -2,6 +2,9 @@
 
 This project forecasts daily brand consumption for six hotel bars and recommends inventory par levels that cover supplier lead time plus a service-level safety buffer.
 
+## Live Demo link: https://nnayvzb8xwhwvp7fwsdfjq.streamlit.app/https://nnayvzb8xwhwvp7fwsdfjq.streamlit.app/
+
+
 ## Quick start
 
 1. Install Python 3.10+ and dependencies:
