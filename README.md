@@ -1,121 +1,77 @@
 # Inventory Demand Forecasting and Par-Level Recommendation System for Bars
 
-An explainable ML system that analyzes transaction-level bar inventory data, forecasts item demand, recommends par levels, simulates replenishment, and exposes the results through a Streamlit dashboard.
-
-## Business objective
-
-Bar managers need enough product to protect availability without carrying unnecessary inventory. This project turns historical opening balance, purchases, consumption, and closing balance records into daily bar-brand demand signals and an operational reorder queue.
-
-## Dataset
-
-The source is `Consumption Dataset.xlsx`, containing 6,575 transaction rows in a `Dataset` sheet with:
-
-- `Date Time Served`
-- `Bar Name`
-- `Alcohol Type`
-- `Brand Name`
-- Opening, purchase, consumed, and closing quantities in milliliters
-
-The pipeline validates timestamps and numeric values, checks duplicates, rejects negative consumption, and verifies the conservation identity:
-
-`Opening balance + purchase - consumed - closing balance = 0`
-
-## Architecture
-
-```text
-Consumption Dataset.xlsx
-        |
-        v
-src/data_preprocessing.py  -> cleaned daily series and category summaries
-        |
-        v
-src/forecasting.py          -> leakage-safe features and time split models
-        |
-        +--> src/evaluation.py -> MAE, RMSE, WAPE, inventory simulation
-        |
-        v
-src/par_level.py            -> demand coverage, safety stock, recommendations
-        |
-        v
-src/pipeline.py             -> models/, outputs/, data/processed/, figures
-        |
-        v
-app.py                      -> Streamlit control tower
-```
-
-## Forecasting method
-
-The system compares three forecasts without randomly shuffling time series data:
-
-1. A transparent seven-day moving average used for the operational recommendation.
-2. A seven-day seasonal-naive challenger.
-3. A Random Forest using lag 1/7/14, rolling mean and standard deviation, weekday, month, weekend, bar, category, and brand features.
-
-The model uses a chronological 80/20 train/validation split. Metrics include MAE, RMSE, and WAPE. The results are measured on this dataset and are not claims about future production accuracy.
-
-## Par-level formula
-
-For lead time `L`, review period `R`, forecast daily demand `d`, demand standard deviation `sigma`, and service-level z-score `z`:
-
-`coverage demand = max(0, forecast demand) * (L + R)`
-
-`safety stock = z * max(0, sigma) * sqrt(L + R)`
-
-`par level = coverage demand + safety stock`
-
-The default policy uses two lead-time days, one review-period day, and a 95% service target with `z = 1.645`. These settings are configurable in `src/par_level.py`.
-
-## Inventory simulation
-
-The order-up-to simulation starts at the par level, consumes actual validation demand, places replenishment orders when inventory position falls below par, receives orders after lead time, and records stockout days, lost volume, and average inventory. Unmet demand is treated as lost sales. Simulation results are decision-support evidence, not guaranteed real-world performance.
+This project analyzes historical bar inventory movement data, forecasts item-level demand, recommends par levels, simulates replenishment, and presents the results through Streamlit.
 
 ## Project structure
 
 ```text
-.
+inventory-demand-forecasting/
 ├── data/
-│   └── processed/                  # notebook/pipeline-compatible intermediate outputs
+│   └── Consumption Dataset.xlsx
 ├── notebooks/
-│   └── inventory_forecasting_solution.ipynb
+│   └── exploratory_analysis.ipynb
 ├── src/
 │   ├── data_preprocessing.py
-│   ├── evaluation.py
 │   ├── forecasting.py
 │   ├── par_level.py
-│   └── pipeline.py
+│   └── evaluation.py
 ├── models/
 │   └── forecasting_model.pkl
 ├── outputs/
-│   ├── inventory_recommendations.csv
-│   ├── forecast_metrics.csv
-│   └── category_consumption.csv
-├── report/figures/
+│   └── inventory_recommendations.csv
 ├── app.py
 ├── requirements.txt
-├── tests/test_pipeline.py
+├── README.md
 ├── .gitignore
 └── LICENSE
 ```
+
+## Dataset
+
+`data/Consumption Dataset.xlsx` contains 6,575 transaction rows in the `Dataset` sheet. The observed fields are date/time served, bar, alcohol category, brand, opening balance, purchases, consumption, and closing balance in milliliters.
+
+The preprocessing module validates dates and numeric values, checks duplicates and negative consumption, verifies the inventory conservation identity, aggregates daily bar-brand demand, and completes missing dates with zero demand where a series exists.
+
+## Forecasting
+
+The project uses a chronological 80/20 time split with no random shuffling. It compares:
+
+- Seven-day moving average baseline used for the recommendation policy.
+- Seven-day seasonal-naive challenger.
+- Random Forest using lag consumption, rolling mean and standard deviation, weekday, month, weekend, bar, alcohol category, and brand features.
+
+The evaluation reports MAE, RMSE, and WAPE. On the current dataset, the moving average has MAE 92.57 ml, RMSE 153.25 ml, and WAPE 166.35%. These are measured validation results, not guaranteed future accuracy.
+
+## Par-level recommendation
+
+For lead time `L`, review period `R`, forecast daily demand `d`, demand standard deviation `sigma`, and service-level z-score `z`:
+
+```text
+coverage demand = max(0, d) * (L + R)
+safety stock = z * max(0, sigma) * sqrt(L + R)
+par level = coverage demand + safety stock
+```
+
+The default is two lead-time days, one review-period day, and a 95% service target (`z = 1.645`). The recommendation file contains bar, alcohol category, brand, forecast method, forecast demand, safety stock, par level, stockout days, lost volume, and average inventory.
+
+## Inventory simulation
+
+The simulation starts at the par level, consumes validation demand, places an order when inventory position falls below par, receives orders after the configured lead time, and records ending inventory, stockout days, lost volume, and average inventory. Unmet demand is treated as lost sales. Results are simulated decision-support evidence, not real-world guarantees.
 
 ## Run locally
 
 ```powershell
 py -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m src.pipeline
-.venv\Scripts\python.exe -m unittest discover -s tests -v
 .venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Open the notebook for the narrated analysis and generated figures. Run the pipeline whenever the source workbook changes. The dashboard consumes the generated CSV files and offers filters, model comparison, risk views, recommendation downloads, and the PDF report download.
+Open `notebooks/exploratory_analysis.ipynb` for the narrated data analysis, visualizations, model comparison, par-level calculation, simulation walkthrough, recommendation generation, and model serialization. Run all notebook cells before opening the dashboard.
 
 ## Streamlit Community Cloud
 
-Push this repository to GitHub, create a Streamlit Community Cloud app, select `app.py` as the main file, and use Python 3.10 or newer. The committed workbook, model, and outputs allow the dashboard to open immediately; rerun `src.pipeline` locally when the source data changes.
+Push the repository to GitHub, create a Streamlit Community Cloud app, select `app.py` as the main file, and use Python 3.10 or newer. The dashboard reads the committed workbook, model, and `outputs/inventory_recommendations.csv`.
 
-## Limitations and future improvements
+## Limitations
 
-- Historical stockouts can censor observed demand.
-- Promotions, events, weather, holidays, waste, and vendor delays are not modeled.
-- Supplier lead time is constant rather than vendor-specific or probabilistic.
-- Future work can add event features, probabilistic forecasts, censored-demand correction, vendor lead-time data, and automated monitoring.
+Historical stockouts may censor observed demand. Promotions, events, weather, holidays, waste, vendor delays, and vendor-specific lead times are not modeled. Future improvements include event features, probabilistic forecasts, censored-demand correction, vendor lead-time data, and automated monitoring.

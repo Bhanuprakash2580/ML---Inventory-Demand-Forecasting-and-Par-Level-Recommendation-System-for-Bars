@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
+from src.data_preprocessing import abc_segmentation, aggregate_daily, category_summary, load_and_clean
+from src.forecasting import train_and_evaluate
+
 st.set_page_config(
     page_title="Bar inventory control tower",
     page_icon=":material/bar_chart:",
@@ -11,29 +14,18 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / "data" / "processed"
+DATA_DIR = ROOT / "data"
 OUTPUT_DIR = ROOT / "outputs"
-REPORT_DIR = ROOT / "report"
-SOURCE_FILE = ROOT / "Consumption Dataset.xlsx"
+SOURCE_FILE = DATA_DIR / "Consumption Dataset.xlsx"
 
 @st.cache_data(ttl="15m")
 def load_outputs():
-    recommendations_path = OUTPUT_DIR / "inventory_recommendations.csv"
-    metrics_path = OUTPUT_DIR / "forecast_metrics.csv"
-    category_path = OUTPUT_DIR / "category_consumption.csv"
-    recommendations = pd.read_csv(
-        recommendations_path if recommendations_path.exists() else DATA_DIR / "par_level_recommendations.csv"
-    )
-    metrics = pd.read_csv(metrics_path if metrics_path.exists() else DATA_DIR / "forecast_metrics.csv", index_col=0)
-    daily = pd.read_csv(DATA_DIR / "daily_bar_consumption.csv", parse_dates=["Date"])
-    abc = pd.read_csv(DATA_DIR / "abc_inventory_segmentation.csv")
-    categories = pd.read_csv(category_path if category_path.exists() else DATA_DIR / "category_consumption.csv")
-    if "Alcohol Type" not in recommendations.columns:
-        category_lookup = daily[["Brand Name", "Alcohol Type"]].drop_duplicates("Brand Name")
-        recommendations = recommendations.merge(category_lookup, on="Brand Name", how="left")
-    if "Alcohol Type" not in daily.columns:
-        category_lookup = recommendations[["Brand Name", "Alcohol Type"]].drop_duplicates("Brand Name")
-        daily = daily.merge(category_lookup, on="Brand Name", how="left")
+    raw, _ = load_and_clean(SOURCE_FILE)
+    daily = aggregate_daily(raw)
+    categories = category_summary(raw)
+    abc = abc_segmentation(daily)
+    _, _, _, metrics = train_and_evaluate(daily)
+    recommendations = pd.read_csv(OUTPUT_DIR / "inventory_recommendations.csv")
     return recommendations, metrics, daily, abc, categories
 
 def format_ml(value):
@@ -79,15 +71,6 @@ with st.sidebar:
         icon=":material/download:",
         width="stretch",
     )
-    if (REPORT_DIR / "business_report.pdf").exists():
-        st.download_button(
-            "Download business report",
-            (REPORT_DIR / "business_report.pdf").read_bytes(),
-            "business_report.pdf",
-            "application/pdf",
-            icon=":material/picture_as_pdf:",
-            width="stretch",
-        )
     st.caption(f"Source: `{SOURCE_FILE.name}`")
 
 selected_series = recommendations[
@@ -248,11 +231,8 @@ with model_tab:
                 "The seven-day moving average is the transparent operating forecast. "
                 "The Random Forest and seasonal-naive models remain visible as challengers."
             )
-    st.image(
-        str(REPORT_DIR / "figures" / "forecast_model_comparison.png"),
-        caption="Validation error comparison",
-        width="stretch",
-    )
+    st.bar_chart(metrics[["MAE_ml", "RMSE_ml"]], color=["#167d8d", "#e07a5f"])
+    st.caption("Chronological validation error in milliliters.")
 
 with data_tab:
     quality_col, abc_col = st.columns([1, 1])
