@@ -1,13 +1,14 @@
 # Bar Inventory Forecasting and Par-Level Recommendation
 
 ## Executive summary
-This notebook cleans the committed daily consumption CSV, forecasts demand by bar and brand, evaluates a seasonal baseline against a Random Forest, and recommends inventory par levels for a two-day supplier lead time.
+This notebook cleans the original transaction-level Excel dataset, forecasts demand by bar and brand, evaluates a seasonal baseline against a Random Forest, and recommends inventory par levels for a two-day supplier lead time.
 
 ## Data and quality
-- Rows loaded: 35,136; completed daily rows: 35,136.
+- Source: `Consumption Dataset.xlsx`; transaction rows loaded: 6,575; completed daily rows: 35,136.
 - Scope: 6 bars, 16 brands, 96 bar-brand series.
 - Date range: 2023-01-01 to 2024-01-01.
-- Invalid dates: 0; invalid demand values: 0; duplicate keys: 0.
+- Invalid dates: 0; invalid numeric rows: 0; duplicate rows: 0.
+- Maximum absolute conservation error: 0.00000000 ml.
 
 ## Forecast evidence
 The chronological 80/20 validation compares a seven-day seasonal-naive forecast with a Random Forest using lags, rolling statistics, weekday, weekend, bar, and brand features. The seasonal baseline WAPE is 175.0% and the Random Forest WAPE is 176.6%. RMSE values are 203.5 ml and 148.2 ml respectively.

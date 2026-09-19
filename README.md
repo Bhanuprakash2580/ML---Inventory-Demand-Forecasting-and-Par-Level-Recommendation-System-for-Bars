@@ -15,12 +15,13 @@ This project is a self-contained Jupyter Notebook recommendation system for fore
    ```
 
 2. Open `notebooks/inventory_forecasting_solution.ipynb` in Jupyter or VS Code.
-3. Run all cells. The notebook cleans the committed CSV, trains and evaluates the models, creates recommendations, saves figures, and writes the Markdown/PDF business reports.
+3. Run all cells. The notebook cleans the original transaction-level Excel workbook, trains and evaluates the models, creates recommendations, saves figures, and writes the Markdown/PDF business reports.
 
 ## Project layout
 
+- `Consumption Dataset.xlsx`: original transaction-level source workbook.
 - `notebooks/inventory_forecasting_solution.ipynb`: complete cleaning, visualization, modeling, evaluation, recommendation, and reporting workflow.
-- `data/processed/daily_bar_consumption.csv`: generated daily bar-brand series.
+- `data/processed/daily_bar_consumption.csv`: generated daily bar-brand series from the workbook.
 - `data/processed/forecast_metrics.csv`: validation MAE, RMSE, and WAPE.
 - `data/processed/par_level_recommendations.csv`: bar-brand par levels and simulation metrics.
 - `data/processed/abc_inventory_segmentation.csv`: A/B/C inventory priority classification.
