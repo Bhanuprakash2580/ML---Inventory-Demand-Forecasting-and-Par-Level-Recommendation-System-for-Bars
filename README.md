@@ -7,10 +7,11 @@ This project forecasts daily brand consumption for six hotel bars and recommends
 1. Install Python 3.10+ and dependencies:
 
    ```powershell
-   python -m pip install -r requirements.txt
+   py -m venv .venv
+   .venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
 
-2. Run the reproducible pipeline with `python run_analysis.py`.
+2. Run the reproducible pipeline with `.venv\Scripts\python.exe run_analysis.py`.
 3. Open `notebooks/inventory_forecasting_solution.ipynb` in Jupyter or VS Code for the interactive walkthrough.
 4. Launch the dashboard locally:
 
