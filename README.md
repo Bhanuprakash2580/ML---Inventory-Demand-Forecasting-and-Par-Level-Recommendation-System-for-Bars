@@ -2,6 +2,9 @@
 
 This project is a self-contained Jupyter Notebook recommendation system for forecasting daily brand consumption across six hotel bars and recommending inventory par levels that cover supplier lead time plus a service-level safety buffer.
 
+## Live Demo link: https://nnayvzb8xwhwvp7fwsdfjq.streamlit.app
+
+
 ## Quick start
 
 1. Install Python 3.10+ and dependencies:
