@@ -1,31 +1,21 @@
-# Managerial Report: Bar Inventory Forecasting
+# Bar Inventory Forecasting and Par-Level Recommendation
 
-## Business problem
+## Executive summary
+This notebook cleans the committed daily consumption CSV, forecasts demand by bar and brand, evaluates a seasonal baseline against a Random Forest, and recommends inventory par levels for a two-day supplier lead time.
 
-Bar managers must protect availability of popular brands without tying cash and storage capacity up in slow-moving stock. A stockout can prevent signature drinks and reduce guest satisfaction; excess stock increases working capital, shrinkage, and spoilage exposure.
+## Data and quality
+- Rows loaded: 35,136; completed daily rows: 35,136.
+- Scope: 6 bars, 16 brands, 96 bar-brand series.
+- Date range: 2023-01-01 to 2024-01-01.
+- Invalid dates: 0; invalid demand values: 0; duplicate keys: 0.
 
-## Data and method
+## Forecast evidence
+The chronological 80/20 validation compares a seven-day seasonal-naive forecast with a Random Forest using lags, rolling statistics, weekday, weekend, bar, and brand features. The seasonal baseline WAPE is 175.0% and the Random Forest WAPE is 176.6%. RMSE values are 203.5 ml and 148.2 ml respectively.
 
-The supplied workbook contains transaction-level opening balance, purchase, consumption, and closing balance records. The notebook verifies the conservation identity, converts timestamps to daily dates, aggregates consumption by bar and brand, and fills missing service days with zero. The forecasting evaluation uses a chronological 80/20 split. A seasonal-naive forecast based on the value seven days earlier is compared with a Random Forest using lag, rolling, calendar, bar, and brand features.
+## Inventory recommendation
+Par level = predicted daily demand x 2 lead-time days + 1.645 x daily demand standard deviation x sqrt(2). The validation simulation produced 418 stockout days, 68,193 ml lost volume, and 33,579 ml summed average inventory across 96 series.
 
-The recommended policy is deliberately interpretable: expected daily demand is multiplied by supplier lead time and augmented with safety stock. Safety stock is `1.645 * daily standard deviation * sqrt(lead_time_days)`, corresponding to a 95% target service level. The simulation receives pending orders after lead time, deducts actual consumption, records lost demand, and orders up to the par level.
+The highest-volume validation series was **Thomas's Bar / Yellow Tail**, with 14 stockout days and 2,400 ml lost volume.
 
-## Assumptions and trade-offs
-
-- Lead time is constant by default at two days; real vendor variability should be added when available.
-- Unmet demand is lost, not backordered.
-- Measurements are in milliliters and purchases are immediately available after receipt.
-- The implementation favors a transparent Random Forest and seasonal baseline over an opaque advanced model because managers need explainable reorder quantities and the dataset contains intermittent zero demand. On the supplied data, the seasonal-naive baseline achieved 203.53 ml RMSE and 174.98% WAPE; the Random Forest achieved 148.19 ml RMSE and 176.66% WAPE. The Random Forest reduces large errors, while the baseline is slightly better on aggregate absolute error, so both remain visible as operational challengers.
-- Historical stockouts can censor observed consumption, so forecast accuracy should be interpreted as demand observed in the inventory system, not perfect unconstrained demand.
-
-## Operational recommendation
-
-Use the notebook output as a daily decision-support table containing bar, brand, forecast demand, safety stock, par level, and reorder quantity. Start with a 95% service level for high-velocity brands and review the resulting simulated stockout and holding-stock trade-off with managers. Apply ABC segmentation to prioritize human review: Class A items deserve the tightest monitoring and lead-time confirmation.
-
-## Failure modes and next steps
-
-Promotions, holidays, events, weather, supplier delays, breakage, and pouring waste can invalidate a historical-only forecast. Production should monitor forecast WAPE, stockout rate, lead-time variance, and data-quality checks. Future improvements include promotion/event features, probabilistic forecasts, per-vendor lead times, censored-demand correction, and a live reorder dashboard.
-
-## Evidence
-
-The completed run generated 35,136 daily bar-brand rows and 96 recommendation series. The validation policy simulation recorded 418 stockout days, 68,193 ml lost volume, and 33,579 ml summed average inventory across the 96 series. Generated evidence is available in `data/processed/forecast_metrics.csv`, `data/processed/par_level_recommendations.csv`, and `report/business_report.pdf`.
+## Assumptions and next steps
+Demand is measured in milliliters, unmet demand is treated as lost, lead time is constant, and observed consumption may be censored by historical stockouts. Add promotions, events, vendor lead-time variation, and a live inventory position before production deployment.
