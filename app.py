@@ -12,22 +12,35 @@ st.set_page_config(
 )
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data" / "processed"
+OUTPUT_DIR = ROOT / "outputs"
 REPORT_DIR = ROOT / "report"
 SOURCE_FILE = ROOT / "Consumption Dataset.xlsx"
 
 @st.cache_data(ttl="15m")
 def load_outputs():
-    recommendations = pd.read_csv(DATA_DIR / "par_level_recommendations.csv")
-    metrics = pd.read_csv(DATA_DIR / "forecast_metrics.csv", index_col=0)
+    recommendations_path = OUTPUT_DIR / "inventory_recommendations.csv"
+    metrics_path = OUTPUT_DIR / "forecast_metrics.csv"
+    category_path = OUTPUT_DIR / "category_consumption.csv"
+    recommendations = pd.read_csv(
+        recommendations_path if recommendations_path.exists() else DATA_DIR / "par_level_recommendations.csv"
+    )
+    metrics = pd.read_csv(metrics_path if metrics_path.exists() else DATA_DIR / "forecast_metrics.csv", index_col=0)
     daily = pd.read_csv(DATA_DIR / "daily_bar_consumption.csv", parse_dates=["Date"])
     abc = pd.read_csv(DATA_DIR / "abc_inventory_segmentation.csv")
-    return recommendations, metrics, daily, abc
+    categories = pd.read_csv(category_path if category_path.exists() else DATA_DIR / "category_consumption.csv")
+    if "Alcohol Type" not in recommendations.columns:
+        category_lookup = daily[["Brand Name", "Alcohol Type"]].drop_duplicates("Brand Name")
+        recommendations = recommendations.merge(category_lookup, on="Brand Name", how="left")
+    if "Alcohol Type" not in daily.columns:
+        category_lookup = recommendations[["Brand Name", "Alcohol Type"]].drop_duplicates("Brand Name")
+        daily = daily.merge(category_lookup, on="Brand Name", how="left")
+    return recommendations, metrics, daily, abc, categories
 
 def format_ml(value):
     return f"{value:,.0f} ml"
 
 try:
-    recommendations, metrics, daily, abc = load_outputs()
+    recommendations, metrics, daily, abc, categories = load_outputs()
 except FileNotFoundError:
     st.error("Generated outputs are missing. Run all cells in the notebook first.", icon=":material/error:")
     st.stop()
@@ -43,6 +56,11 @@ with st.sidebar:
         "Brands",
         sorted(recommendations["Brand Name"].unique()),
         default=sorted(recommendations["Brand Name"].unique()),
+    )
+    selected_categories = st.multiselect(
+        "Alcohol categories",
+        sorted(recommendations["Alcohol Type"].unique()),
+        default=sorted(recommendations["Alcohol Type"].unique()),
     )
     date_range = st.date_input(
         "Demand window",
@@ -75,6 +93,7 @@ with st.sidebar:
 selected_series = recommendations[
     recommendations["Bar Name"].isin(selected_bars)
     & recommendations["Brand Name"].isin(selected_brands)
+    & recommendations["Alcohol Type"].isin(selected_categories)
 ].copy()
 if risk_only:
     selected_series = selected_series[selected_series["stockout_days"] > 0]
@@ -91,6 +110,7 @@ else:
 filtered_daily = daily[
     daily["Bar Name"].isin(selected_bars)
     & daily["Brand Name"].isin(selected_brands)
+    & daily["Alcohol Type"].isin(selected_categories)
     & daily["Date"].between(start_date, end_date)
 ].copy()
 
@@ -225,8 +245,8 @@ with model_tab:
             rmse_change = (1 - metrics.loc["Random Forest", "RMSE_ml"] / metrics.loc["Seasonal naive (7 days)", "RMSE_ml"])
             st.metric("Random Forest RMSE improvement", f"{rmse_change:.1%}")
             st.write(
-                "The Random Forest reduces large errors, while the seasonal baseline "
-                "has slightly lower aggregate WAPE. Keep both visible as operational challengers."
+                "The seven-day moving average is the transparent operating forecast. "
+                "The Random Forest and seasonal-naive models remain visible as challengers."
             )
     st.image(
         str(REPORT_DIR / "figures" / "forecast_model_comparison.png"),
@@ -251,5 +271,11 @@ with data_tab:
             abc_counts = abc["ABC_class"].value_counts().reindex(["A", "B", "C"]).fillna(0)
             st.bar_chart(abc_counts, color="#167d8d")
             st.caption("Class A items account for the first 80% of cumulative consumption.")
+
+    with st.container(border=True):
+        st.subheader("Consumption by alcohol category")
+        category_chart = categories.set_index("Alcohol Type")["total_consumption_ml"]
+        st.bar_chart(category_chart, color="#167d8d", horizontal=True)
+        st.caption("Category totals are calculated from the original transaction-level workbook.")
 
 st.caption("Refresh the notebook outputs after changing the source workbook, then reload this dashboard.")
